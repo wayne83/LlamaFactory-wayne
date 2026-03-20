@@ -1,4 +1,7 @@
 {
+  "shopping_profile":{
+    "file_name": "/cosmos/projects/Recommendations/PartnerData/Pipelines/OneRec/Data/LLMTrainingData/SftData/profile_sft.json"
+  },
   "identity": {
     "file_name": "identity.json"
   },

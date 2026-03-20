@@ -120,7 +120,10 @@ class SupervisedDatasetProcessor(DatasetProcessor):
         print("inputs:\n{}".format(self.tokenizer.decode(example["input_ids"], skip_special_tokens=False)))
         print("label_ids:\n{}".format(example["labels"]))
         print(f"labels:\n{self.tokenizer.decode(valid_labels, skip_special_tokens=False)}")
-
+        if "attention_mask" in example:
+            print("attention_mask:\n{}".format(example["attention_mask"]))
+        if "position_ids" in example:
+            print("position_ids:\n{}".format(example["position_ids"]))
 
 @dataclass
 class PackedSupervisedDatasetProcessor(SupervisedDatasetProcessor):

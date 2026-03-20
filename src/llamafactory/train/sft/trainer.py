@@ -17,6 +17,7 @@
 
 import json
 import os
+import time
 from functools import partial
 from types import MethodType
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -228,3 +229,70 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         with open(output_prediction_file, "w", encoding="utf-8") as f:
             for text, pred, label in zip(decoded_inputs, decoded_preds, decoded_labels):
                 f.write(json.dumps({"prompt": text, "predict": pred, "label": label}, ensure_ascii=False) + "\n")
+
+    @override
+    def log(self, logs: dict[str, float], *args, **kwargs) -> None:
+        r"""Inject speed metrics into logs so they appear in TensorBoard."""
+        # Lazily initialize speed tracking state on first log call
+        if not hasattr(self, "_speed_start_time"):
+            self._speed_start_time = time.time()
+            self._speed_last_time = time.time()
+            self._speed_last_tokens = 0
+            self._speed_last_step = 0
+            self._speed_total_samples = 0
+
+        now = time.time()
+
+        # Only inject speed metrics during training (when "loss" key is present)
+        if "loss" in logs:
+            elapsed_total = now - self._speed_start_time
+            elapsed_interval = now - self._speed_last_time
+
+            # Tokens per second (requires include_num_input_tokens_seen=True)
+            if self.state.num_input_tokens_seen and elapsed_total > 0:
+                logs["speed/avg_tokens_per_sec"] = round(
+                    self.state.num_input_tokens_seen / elapsed_total, 2
+                )
+                if elapsed_interval > 0:
+                    interval_tokens = self.state.num_input_tokens_seen - self._speed_last_tokens
+                    logs["speed/cur_tokens_per_sec"] = round(interval_tokens / elapsed_interval, 2)
+
+            # Steps per second (accurate regardless of packing)
+            if self.state.global_step > 0 and elapsed_total > 0:
+                logs["speed/avg_steps_per_sec"] = round(self.state.global_step / elapsed_total, 4)
+                if elapsed_interval > 0:
+                    interval_steps = self.state.global_step - self._speed_last_step
+                    logs["speed/cur_steps_per_sec"] = round(interval_steps / elapsed_interval, 4)
+
+            # Total samples seen (accumulated from training_step via _count_packed_samples)
+            if self._speed_total_samples > 0 and elapsed_total > 0:
+                logs["speed/total_samples"] = self._speed_total_samples
+                logs["speed/avg_samples_per_sec"] = round(self._speed_total_samples / elapsed_total, 2)
+
+            # Update tracking state for next interval
+            self._speed_last_time = now
+            self._speed_last_tokens = self.state.num_input_tokens_seen or 0
+            self._speed_last_step = self.state.global_step
+
+        return super().log(logs, *args, **kwargs)
+
+    @override
+    def training_step(self, model, inputs, num_items_in_batch=None):
+        r"""Count real samples in packed sequences before forwarding to parent."""
+        if not hasattr(self, "_speed_total_samples"):
+            self._speed_total_samples = 0
+
+        # Count real samples: in neat_packing mode, attention_mask values are sample IDs (1,2,3...)
+        # In non-neat packing, count EOS tokens in labels as a proxy for sample boundaries
+        if "position_ids" in inputs:
+            # 每个样本的 position_ids 从 0 开始，所以 0 的个数 = 样本数
+            # 注意 padding 部分 position_ids 也是 0，需要排除
+            pos = inputs["position_ids"]
+            attn = inputs["attention_mask"]
+            # position_ids == 0 且 attention_mask != 0 的位置 = 样本起始点
+            sample_starts = ((pos == 0) & (attn != 0)).sum().item()
+            self._speed_total_samples += sample_starts
+        else:
+            # 无 packing：每行一个样本
+            self._speed_total_samples += inputs["input_ids"].shape[0]
+        return super().training_step(model, inputs, num_items_in_batch)

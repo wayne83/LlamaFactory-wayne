@@ -1,0 +1,13 @@
+DISABLE_VERSION_CHECK=1 CUDA_VISIBLE_DEVICES=0 python3 -m llamafactory.cli train \
+    --model_name_or_path /scratch/workspaceblobstore/users/wangying/model/Qwen3.5-9B \
+    --adapter_name_or_path saves/qwen3-5-9b/lora/sft_4gpus_lr5e-5_batch2_gradacc4_lorarank16_cut4096_packing/checkpoint-8142 \
+    --trust_remote_code \
+    --template qwen3_5 \
+    --finetuning_type lora \
+    --stage sft \
+    --do_predict \
+    --eval_dataset shopping_profile_test \
+    --output_dir results/1000/ \
+    --per_device_eval_batch_size 8 \
+    --predict_with_generate \
+    --max_new_tokens

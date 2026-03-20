@@ -1,7 +1,5 @@
 ### model
 model_name_or_path: /scratch/workspaceblobstore/users/wangying/model/Qwen3.5-9B
-quantization_bit: 4  # choices: [8 (bnb/hqq/eetq), 4 (bnb/hqq), 3 (hqq), 2 (hqq)]
-quantization_method: hqq  # choices: [bnb, hqq, eetq]
 trust_remote_code: true
 
 ### method
@@ -14,32 +12,34 @@ lora_target: all
 ### dataset
 dataset: shopping_profile
 template: qwen3_5
-cutoff_len: 2048
+cutoff_len: 4096
 max_samples: 500000
 preprocessing_num_workers: 16
 dataloader_num_workers: 4
 
 ### output
-output_dir: saves/qwen3-5-9b/lora/sft
+output_dir: saves/qwen3-5-9b/lora/sft_4Gpus_lr5e-5_lorarank16_cut4096
 logging_steps: 10
-save_steps: 10000
+save_steps: 1000
 plot_loss: true
 overwrite_output_dir: true
 save_only_model: false
-report_to: none  # choices: [none, wandb, tensorboard, swanlab, mlflow]
+report_to: tensorboard  # choices: [none, wandb, tensorboard, swanlab, mlflow]
 
 ### train
-per_device_train_batch_size: 1
-gradient_accumulation_steps: 8
+per_device_train_batch_size: 16
+gradient_accumulation_steps: 1
 learning_rate: 5.0e-5
 num_train_epochs: 2.0
 lr_scheduler_type: cosine
 warmup_ratio: 0.1
 bf16: true
 ddp_timeout: 180000000
+resume_from_checkpoint: null
 
 ### eval
-val_size: 0.1
-per_device_eval_batch_size: 1
-eval_strategy: steps
-eval_steps: 10000
+# eval_dataset: shopping_profile
+# val_size: 0.1
+# per_device_eval_batch_size: 1
+# eval_strategy: steps
+# eval_steps: 1000
